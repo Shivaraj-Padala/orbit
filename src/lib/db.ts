@@ -27,6 +27,53 @@ export interface Transaction {
   note: string
   /** Local calendar day, YYYY-MM-DD */
   date: string
+  /** Card / UPI / cash etc. that was used */
+  paymentMethodId: string | null
+  /** Set when this entry was logged from a fixed expense */
+  recurringId: string | null
+  /** The month (YYYY-MM) a fixed-expense entry pays for */
+  period: string | null
+  createdAt: string
+}
+
+export type PaymentMethodType =
+  | "credit_card"
+  | "debit_card"
+  | "upi"
+  | "cash"
+  | "bank"
+  | "wallet"
+  | "other"
+
+export interface PaymentMethod {
+  id: string
+  /** A friendly name only — never card numbers */
+  name: string
+  type: PaymentMethodType
+  /** Hidden from pickers but kept so past entries still show it */
+  archived: boolean
+  createdAt: string
+}
+
+export type RecurringKind = "bill" | "emi"
+
+export interface RecurringExpense {
+  id: string
+  kind: RecurringKind
+  name: string
+  amount: number
+  category: string
+  paymentMethodId: string | null
+  /** 1–31; clamped to the month's last day */
+  dueDay: number
+  /** First month it applies to, YYYY-MM */
+  startMonth: string
+  /** Last month it applies to (required for EMIs), YYYY-MM */
+  endMonth: string | null
+  /** Log an entry automatically when the due day arrives */
+  autoLog: boolean
+  /** Last month (YYYY-MM) auto-logging has handled; never revisited */
+  autoLoggedThrough: string | null
   createdAt: string
 }
 
@@ -95,6 +142,8 @@ export const db = new Dexie("orbit") as Dexie & {
   goals: EntityTable<Goal, "id">
   checkins: EntityTable<CheckIn, "id">
   settings: EntityTable<Settings, "key">
+  paymentMethods: EntityTable<PaymentMethod, "id">
+  recurring: EntityTable<RecurringExpense, "id">
 }
 
 db.version(1).stores({
@@ -107,3 +156,41 @@ db.version(1).stores({
 
 export const newId = () => crypto.randomUUID()
 export const nowIso = () => new Date().toISOString()
+
+const defaultPaymentMethods = (): PaymentMethod[] => {
+  const t = Date.now()
+  return [
+    { id: newId(), name: "UPI", type: "upi", archived: false, createdAt: new Date(t).toISOString() },
+    { id: newId(), name: "Cash", type: "cash", archived: false, createdAt: new Date(t + 1).toISOString() },
+  ]
+}
+
+db.version(2)
+  .stores({
+    transactions: "id, date, type, category, paymentMethodId, recurringId",
+    paymentMethods: "id, createdAt",
+    recurring: "id, startMonth",
+  })
+  .upgrade(async (tx) => {
+    await tx
+      .table("transactions")
+      .toCollection()
+      .modify((t: Partial<Transaction>) => {
+        t.paymentMethodId ??= null
+        t.recurringId ??= null
+        t.period ??= null
+      })
+    await tx.table("paymentMethods").bulkAdd(defaultPaymentMethods())
+  })
+
+/** Re-seed Cash and UPI when there are no payment methods at all. */
+export async function ensureDefaultPaymentMethods() {
+  if ((await db.paymentMethods.count()) === 0) {
+    await db.paymentMethods.bulkAdd(defaultPaymentMethods())
+  }
+}
+
+// Fresh installs skip upgrade functions, so seed here too.
+db.on("populate", (tx) => {
+  void tx.table("paymentMethods").bulkAdd(defaultPaymentMethods())
+})

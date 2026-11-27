@@ -4,7 +4,8 @@ import { db, newId, nowIso, type Transaction } from "@/lib/db"
 
 const normalize = (v: string) => v.trim().replace(",", ".")
 
-export const transactionSchema = z.object({
+export const transactionSchema = z
+  .object({
   type: z.enum(["expense", "income"]),
   amount: z
     .string()
@@ -15,7 +16,13 @@ export const transactionSchema = z.object({
   category: z.string().min(1, "Pick a category"),
   note: z.string().max(200, "Keep the note under 200 characters"),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date"),
+  paymentMethodId: z.string(),
 })
+  .superRefine((v, ctx) => {
+    if (v.type === "expense" && !v.paymentMethodId) {
+      ctx.addIssue({ code: "custom", path: ["paymentMethodId"], message: "Where did you pay from?" })
+    }
+  })
 
 export type TransactionValues = z.input<typeof transactionSchema>
 
@@ -27,9 +34,17 @@ export async function saveTransaction(values: TransactionValues, existing?: Tran
     category: v.category,
     note: v.note.trim(),
     date: v.date,
+    paymentMethodId: v.paymentMethodId || null,
   }
   if (existing) await db.transactions.update(existing.id, fields)
-  else await db.transactions.add({ ...fields, id: newId(), createdAt: nowIso() })
+  else
+    await db.transactions.add({
+      ...fields,
+      id: newId(),
+      recurringId: null,
+      period: null,
+      createdAt: nowIso(),
+    })
 }
 
 export const deleteTransaction = (id: string) => db.transactions.delete(id)

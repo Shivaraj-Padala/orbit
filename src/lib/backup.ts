@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import { db } from "./db"
+import { db, ensureDefaultPaymentMethods } from "./db"
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 
@@ -24,6 +24,35 @@ const transactionZ = z.object({
   category: z.string(),
   note: z.string(),
   date,
+  // Added in v2; older backups default to null.
+  paymentMethodId: z.string().nullable().default(null),
+  recurringId: z.string().nullable().default(null),
+  period: z.string().nullable().default(null),
+  createdAt: z.string(),
+})
+
+const paymentMethodZ = z.object({
+  id: z.string(),
+  name: z.string().max(40),
+  type: z.enum(["credit_card", "debit_card", "upi", "cash", "bank", "wallet", "other"]),
+  archived: z.boolean(),
+  createdAt: z.string(),
+})
+
+const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/)
+
+const recurringZ = z.object({
+  id: z.string(),
+  kind: z.enum(["bill", "emi"]),
+  name: z.string(),
+  amount: z.number().positive(),
+  category: z.string(),
+  paymentMethodId: z.string().nullable(),
+  dueDay: z.number().int().min(1).max(31),
+  startMonth: month,
+  endMonth: month.nullable(),
+  autoLog: z.boolean(),
+  autoLoggedThrough: month.nullable(),
   createdAt: z.string(),
 })
 
@@ -62,7 +91,7 @@ const settingsZ = z.object({
 
 const backupSchema = z.object({
   app: z.literal("orbit"),
-  version: z.literal(1),
+  version: z.union([z.literal(1), z.literal(2)]),
   exportedAt: z.string(),
   data: z.object({
     tasks: z.array(taskZ),
@@ -70,13 +99,25 @@ const backupSchema = z.object({
     goals: z.array(goalZ),
     checkins: z.array(checkInZ),
     settings: z.array(settingsZ),
+    paymentMethods: z.array(paymentMethodZ).default([]),
+    recurring: z.array(recurringZ).default([]),
   }),
 })
+
+const TABLES = () => [
+  db.tasks,
+  db.transactions,
+  db.goals,
+  db.checkins,
+  db.settings,
+  db.paymentMethods,
+  db.recurring,
+]
 
 export async function exportBackup() {
   const backup: z.infer<typeof backupSchema> = {
     app: "orbit",
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     data: {
       tasks: await db.tasks.toArray(),
@@ -84,6 +125,8 @@ export async function exportBackup() {
       goals: await db.goals.toArray(),
       checkins: await db.checkins.toArray(),
       settings: await db.settings.toArray(),
+      paymentMethods: await db.paymentMethods.toArray(),
+      recurring: await db.recurring.toArray(),
     },
   }
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" })
@@ -108,21 +151,25 @@ export async function importBackup(file: File) {
     throw new Error("That file doesn't look like an Orbit backup.")
   }
   const { data } = parsed.data
-  await db.transaction("rw", [db.tasks, db.transactions, db.goals, db.checkins, db.settings], async () => {
-    await Promise.all([db.tasks.clear(), db.transactions.clear(), db.goals.clear(), db.checkins.clear(), db.settings.clear()])
+  await db.transaction("rw", TABLES(), async () => {
+    await Promise.all(TABLES().map((t) => t.clear()))
     await Promise.all([
       db.tasks.bulkAdd(data.tasks),
       db.transactions.bulkAdd(data.transactions),
       db.goals.bulkAdd(data.goals),
       db.checkins.bulkAdd(data.checkins),
       db.settings.bulkAdd(data.settings),
+      db.paymentMethods.bulkAdd(data.paymentMethods),
+      db.recurring.bulkAdd(data.recurring),
     ])
   })
+  await ensureDefaultPaymentMethods()
   return data
 }
 
 export async function eraseAll() {
-  await db.transaction("rw", [db.tasks, db.transactions, db.goals, db.checkins, db.settings], async () => {
-    await Promise.all([db.tasks.clear(), db.transactions.clear(), db.goals.clear(), db.checkins.clear(), db.settings.clear()])
+  await db.transaction("rw", TABLES(), async () => {
+    await Promise.all(TABLES().map((t) => t.clear()))
   })
+  await ensureDefaultPaymentMethods()
 }

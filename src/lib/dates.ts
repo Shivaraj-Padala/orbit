@@ -89,3 +89,11 @@ export function greeting(d: Date = new Date()): string {
   if (h < 17) return "Good afternoon"
   return "Good evening"
 }
+
+export function formatMonthShort(monthKey: string): string {
+  const [y, m] = monthKey.split("-").map(Number)
+  return new Date(y, m - 1, 1).toLocaleDateString(undefined, {
+    month: "short",
+    year: "numeric",
+  })
+}

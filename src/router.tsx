@@ -45,6 +45,7 @@ const moneyRoute = createRoute({
       .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
       .optional()
       .catch(undefined),
+    tab: z.enum(["spending", "fixed"]).optional().catch(undefined),
   }),
   component: MoneyPage,
 })

@@ -11,22 +11,25 @@ import type { Transaction, TransactionType } from "@/lib/db"
 import { addDays, toDateKey } from "@/lib/dates"
 import { cn } from "@/lib/utils"
 
-import { CATEGORIES } from "./categories"
 import {
-  currencySymbol,
   deleteTransaction,
   saveTransaction,
   transactionSchema,
   type TransactionValues,
 } from "./data"
+import { AmountInput, CategoryPicker } from "./fields"
+import { PaymentMethodPicker } from "./payment-method-picker"
 
 export function TransactionForm({
   transaction,
   currency,
+  defaultPaymentMethodId = "",
   onDone,
 }: {
   transaction?: Transaction
   currency: string
+  /** Pre-selects the method used most recently */
+  defaultPaymentMethodId?: string
   onDone: () => void
 }) {
   const today = toDateKey()
@@ -36,6 +39,7 @@ export function TransactionForm({
     category: transaction?.category ?? "",
     note: transaction?.note ?? "",
     date: transaction?.date ?? today,
+    paymentMethodId: transaction ? (transaction.paymentMethodId ?? "") : defaultPaymentMethodId,
   }
 
   const form = useForm({
@@ -61,10 +65,16 @@ export function TransactionForm({
         <SheetTitle>{transaction ? "Edit entry" : "New entry"}</SheetTitle>
       </SheetHeader>
 
-      <div className="grid gap-5 px-5">
+      <div className="grid grid-cols-1 gap-5 px-5">
         <form.Field
           name="type"
-          listeners={{ onChange: () => form.setFieldValue("category", "") }}
+          listeners={{
+            onChange: ({ value }) => {
+              form.setFieldValue("category", "")
+              // The remembered method is for spending; income starts unset.
+              form.setFieldValue("paymentMethodId", value === "expense" ? defaultPaymentMethodId : "")
+            },
+          }}
         >
           {(field) => (
             <ToggleGroup
@@ -84,24 +94,15 @@ export function TransactionForm({
             const error = visibleError(field.state.meta)
             return (
               <FormField id="tx-amount" label="Amount" error={error}>
-                <div className="relative">
-                  <span className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-2xl font-medium text-muted-foreground">
-                    {currencySymbol(currency)}
-                  </span>
-                  <Input
-                    id="tx-amount"
-                    inputMode="decimal"
-                    autoComplete="off"
-                    autoFocus={!transaction}
-                    placeholder="0"
-                    value={field.state.value}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    onBlur={field.handleBlur}
-                    aria-invalid={!!error}
-                    className="h-16 text-3xl! font-semibold tracking-tight tabular-nums"
-                    style={{ paddingLeft: `${Math.max(2.5, currencySymbol(currency).length * 0.9 + 1.5)}rem` }}
-                  />
-                </div>
+                <AmountInput
+                  id="tx-amount"
+                  currency={currency}
+                  autoFocus={!transaction}
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                  aria-invalid={!!error}
+                />
               </FormField>
             )
           }}
@@ -109,38 +110,40 @@ export function TransactionForm({
 
         <form.Subscribe selector={(s) => s.values.type}>
           {(type) => (
-            <form.Field name="category">
-              {(field) => (
-                <FormField label="Category" error={visibleError(field.state.meta)}>
-                  <div role="radiogroup" aria-label="Category" className="grid grid-cols-4 gap-2">
-                    {CATEGORIES[type].map(({ id, label, icon: Icon }) => {
-                      const selected = field.state.value === id
-                      return (
-                        <button
-                          key={id}
-                          type="button"
-                          role="radio"
-                          aria-checked={selected}
-                          onClick={() => {
-                            field.handleChange(id)
-                            field.handleBlur()
-                          }}
-                          className={cn(
-                            "flex flex-col items-center gap-1.5 rounded-xl border px-1 py-2.5 text-[11px] font-medium transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-                            selected
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "text-muted-foreground hover:bg-accent"
-                          )}
-                        >
-                          <Icon className="size-5" strokeWidth={1.75} />
-                          <span className="w-full truncate">{label}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </FormField>
-              )}
-            </form.Field>
+            <>
+              <form.Field name="category">
+                {(field) => (
+                  <FormField label="Category" error={visibleError(field.state.meta)}>
+                    <CategoryPicker
+                      type={type}
+                      value={field.state.value}
+                      onChange={(id) => {
+                        field.handleChange(id)
+                        field.handleBlur()
+                      }}
+                    />
+                  </FormField>
+                )}
+              </form.Field>
+              <form.Field name="paymentMethodId">
+                {(field) => (
+                  <FormField
+                    label={type === "expense" ? "Paid with" : "Received in"}
+                    hint={type === "income" ? "Optional" : undefined}
+                    error={visibleError(field.state.meta)}
+                  >
+                    <PaymentMethodPicker
+                      label={type === "expense" ? "Paid with" : "Received in"}
+                      value={field.state.value}
+                      onChange={(id) => {
+                        field.handleChange(id)
+                        field.handleBlur()
+                      }}
+                    />
+                  </FormField>
+                )}
+              </form.Field>
+            </>
           )}
         </form.Subscribe>
 
@@ -195,9 +198,9 @@ export function TransactionForm({
       </div>
 
       <SheetFooter>
-        <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting] as const}>
-          {([canSubmit, isSubmitting]) => (
-            <Button type="submit" size="lg" disabled={!canSubmit || isSubmitting}>
+        <form.Subscribe selector={(s) => s.isSubmitting}>
+          {(isSubmitting) => (
+            <Button type="submit" size="lg" disabled={isSubmitting}>
               {transaction ? "Save changes" : "Add entry"}
             </Button>
           )}

@@ -71,7 +71,7 @@ export function TaskForm({
         <SheetTitle>{task ? "Edit task" : "New task"}</SheetTitle>
       </SheetHeader>
 
-      <div className="grid gap-5 px-5">
+      <div className="grid grid-cols-1 gap-5 px-5">
         <form.Field name="title">
           {(field) => (
             <FormField id="task-title" label="Title" error={visibleError(field.state.meta)}>
@@ -191,9 +191,9 @@ export function TaskForm({
       </div>
 
       <SheetFooter>
-        <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting] as const}>
-          {([canSubmit, isSubmitting]) => (
-            <Button type="submit" size="lg" disabled={!canSubmit || isSubmitting}>
+        <form.Subscribe selector={(s) => s.isSubmitting}>
+          {(isSubmitting) => (
+            <Button type="submit" size="lg" disabled={isSubmitting}>
               {task ? "Save changes" : "Add task"}
             </Button>
           )}

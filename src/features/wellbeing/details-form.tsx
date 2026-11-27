@@ -51,7 +51,7 @@ export function DetailsForm({
         <SheetTitle>{formatDay(date)}'s check-in</SheetTitle>
       </SheetHeader>
 
-      <div className="grid gap-5 px-5">
+      <div className="grid grid-cols-1 gap-5 px-5">
         <form.Field name="energy">
           {(field) => (
             <FormField label="Energy" hint="1 is drained, 5 is buzzing">
@@ -121,9 +121,9 @@ export function DetailsForm({
       </div>
 
       <SheetFooter>
-        <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting] as const}>
-          {([canSubmit, isSubmitting]) => (
-            <Button type="submit" size="lg" disabled={!canSubmit || isSubmitting}>
+        <form.Subscribe selector={(s) => s.isSubmitting}>
+          {(isSubmitting) => (
+            <Button type="submit" size="lg" disabled={isSubmitting}>
               Save
             </Button>
           )}

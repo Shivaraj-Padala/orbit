@@ -20,6 +20,8 @@ import { useSettings } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { GoalCard } from "@/features/goals/goal-card"
 import { monthRange } from "@/features/money/data"
+import { RecurringRow } from "@/features/money/fixed-view"
+import { isActiveIn, statusIn } from "@/features/money/recurring"
 import { compareTasks } from "@/features/tasks/data"
 import { TaskForm } from "@/features/tasks/task-form"
 import { TaskItem, TaskList } from "@/features/tasks/task-item"
@@ -42,6 +44,13 @@ export function TodayPage() {
     return txs.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0)
   }, [])
   const goals = useLiveQuery(() => db.goals.toArray(), [])
+  const month = toMonthKey()
+  const recurring = useLiveQuery(() => db.recurring.toArray(), [])
+  const fixedEntries = useLiveQuery(
+    () => db.transactions.where("recurringId").above("").filter((t) => t.period === month).toArray(),
+    [month]
+  )
+  const methods = useLiveQuery(() => db.paymentMethods.toArray(), [])
 
   const due = (tasks ?? [])
     .filter((t) => !t.done && t.dueDate && t.dueDate <= today)
@@ -52,6 +61,13 @@ export function TodayPage() {
   const hasReminders = (tasks ?? []).some((t) => !t.done && t.remindAt && !t.reminded)
   const activeGoals = (goals ?? []).filter((g) => !g.completedAt).slice(0, 3)
   const mood = moodFor(checkIn?.mood ?? null)
+
+  // Fixed expenses due within a week (or overdue) and not yet paid.
+  const billsDue = (recurring ?? [])
+    .filter((r) => isActiveIn(r, month))
+    .map((r) => ({ r, status: statusIn(r, month, fixedEntries ?? []) }))
+    .filter(({ status }) => status.state === "overdue" || (status.state === "due" && status.days <= 7))
+    .sort((a, b) => a.r.dueDay - b.r.dueDay)
 
   return (
     <>
@@ -99,6 +115,23 @@ export function TodayPage() {
           </TaskList>
         )}
       </Section>
+
+      {billsDue.length > 0 && (
+        <Section title="Bills due" to="/money" search={{ tab: "fixed" }}>
+          <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+            {billsDue.map(({ r, status }) => (
+              <RecurringRow
+                key={r.id}
+                item={r}
+                month={month}
+                status={status}
+                method={methods?.find((m) => m.id === r.paymentMethodId)}
+                currency={currency}
+              />
+            ))}
+          </ul>
+        </Section>
+      )}
 
       <Section title="Check-in" to="/wellbeing">
         <Card>
@@ -175,12 +208,22 @@ export function TodayPage() {
   )
 }
 
-function Section({ title, to, children }: { title: string; to: string; children: ReactNode }) {
+function Section({
+  title,
+  to,
+  search,
+  children,
+}: {
+  title: string
+  to: string
+  search?: Record<string, string>
+  children: ReactNode
+}) {
   return (
     <section className="mt-6">
       <div className="mb-2 flex items-center justify-between px-1">
         <h2 className="text-[13px] font-semibold tracking-wide text-muted-foreground uppercase">{title}</h2>
-        <Link to={to} className="-mr-1 inline-flex items-center gap-0.5 rounded-md px-1 py-0.5 text-[13px] font-medium text-muted-foreground hover:text-foreground">
+        <Link to={to} search={search} className="-mr-1 inline-flex items-center gap-0.5 rounded-md px-1 py-0.5 text-[13px] font-medium text-muted-foreground hover:text-foreground">
           See all <ChevronRight className="size-3.5" />
         </Link>
       </div>

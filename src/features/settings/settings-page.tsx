@@ -36,6 +36,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { PaymentMethodsSettings } from "@/features/money/payment-methods-settings"
 import { eraseAll, exportBackup, importBackup } from "@/lib/backup"
 import type { Settings } from "@/lib/db"
 import { CURRENCIES } from "@/lib/format"
@@ -84,6 +85,9 @@ export function SettingsPage() {
       <SectionTitle>Preferences</SectionTitle>
       {/* Re-mount once stored settings load so the form starts from them. */}
       <PreferencesForm key={settings.loaded ? "ready" : "loading"} settings={settings} />
+
+      <SectionTitle>Payment methods</SectionTitle>
+      <PaymentMethodsSettings />
 
       <SectionTitle>App</SectionTitle>
       <Card className="gap-0 py-0">
@@ -379,7 +383,7 @@ function DataCard() {
             const data = await importBackup(file)
             setMessage({
               tone: "ok",
-              text: `Restored ${data.tasks.length} tasks, ${data.transactions.length} entries, ${data.goals.length} goals and ${data.checkins.length} check-ins.`,
+              text: `Restored ${data.tasks.length} tasks, ${data.transactions.length} entries, ${data.recurring.length} fixed expenses, ${data.goals.length} goals and ${data.checkins.length} check-ins.`,
             })
           } catch (err) {
             setMessage({ tone: "error", text: err instanceof Error ? err.message : "Import failed." })
@@ -400,7 +404,7 @@ function DataCard() {
           <SheetHeader>
             <SheetTitle>Erase all data?</SheetTitle>
             <SheetDescription>
-              Every task, entry, goal and check-in on this device will be deleted. Export a backup first if you might want it back.
+              Every task, entry, fixed expense, payment method, goal and check-in on this device will be deleted. Export a backup first if you might want it back.
             </SheetDescription>
           </SheetHeader>
           <SheetFooter className="pt-4">

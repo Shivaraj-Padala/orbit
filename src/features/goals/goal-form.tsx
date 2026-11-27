@@ -71,7 +71,7 @@ export function GoalForm({ goal, onDone }: { goal?: Goal; onDone: () => void }) 
         <SheetTitle>{goal ? "Edit goal" : "New goal"}</SheetTitle>
       </SheetHeader>
 
-      <div className="grid gap-5 px-5">
+      <div className="grid grid-cols-1 gap-5 px-5">
         {text("title", "Goal", { placeholder: "Read 12 books", autoFocus: !goal })}
 
         <form.Field name="why">
@@ -101,9 +101,9 @@ export function GoalForm({ goal, onDone }: { goal?: Goal; onDone: () => void }) 
       </div>
 
       <SheetFooter>
-        <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting] as const}>
-          {([canSubmit, isSubmitting]) => (
-            <Button type="submit" size="lg" disabled={!canSubmit || isSubmitting}>
+        <form.Subscribe selector={(s) => s.isSubmitting}>
+          {(isSubmitting) => (
+            <Button type="submit" size="lg" disabled={isSubmitting}>
               {goal ? "Save changes" : "Create goal"}
             </Button>
           )}
