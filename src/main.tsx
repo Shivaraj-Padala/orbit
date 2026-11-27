@@ -1,10 +1,19 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.tsx'
+import { RouterProvider } from "@tanstack/react-router"
+import { StrictMode } from "react"
+import { createRoot } from "react-dom/client"
 
-createRoot(document.getElementById('root')!).render(
+import "./index.css"
+import { captureInstallPrompt } from "./lib/install"
+import { startReminders } from "./lib/reminders"
+import { initTheme } from "./lib/theme"
+import { router } from "./router"
+
+initTheme()
+captureInstallPrompt()
+startReminders()
+
+createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
-  </StrictMode>,
+    <RouterProvider router={router} />
+  </StrictMode>
 )

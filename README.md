@@ -1,35 +1,53 @@
-# React + TypeScript + Vite
+# Orbit
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A personal companion app: tasks with reminders, spending, goals and wellbeing —
+in one installable, offline-first PWA. All data stays on the device in IndexedDB.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Today** — a dashboard of what's due, this month's spending, today's check-in and active goals.
+- **Tasks** — quick add, due dates, priorities and reminders (browser notifications). Views for Today, Upcoming, Anytime and Done.
+- **Money** — log expenses and income by category, month-by-month totals, a category breakdown and an optional monthly budget.
+- **Goals** — numeric goals with a unit, target date and one-tap progress.
+- **Wellbeing** — daily mood, water, sleep, energy, movement and a journal, with a 7-day overview.
+- **Settings** — light/dark/auto theme, currency, budget, water goal, install prompt, JSON backup/restore and erase.
 
-## React Compiler
+## Stack
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+- React 19 + TypeScript + Vite, React Compiler
+- [shadcn/ui](https://ui.shadcn.com) components on Radix, Tailwind CSS v4
+- [TanStack Router](https://tanstack.com/router) (code-based routes, hash history, zod-validated search params)
+- [TanStack Form](https://tanstack.com/form) with [zod](https://zod.dev) schemas
+- [Dexie](https://dexie.org) over IndexedDB, with live queries
+- [vite-plugin-pwa](https://vite-pwa-org.netlify.app) (Workbox) for the manifest and offline service worker
 
-Note: This will impact Vite dev & build performances.
-You can also try [the experimental native React Compiler support in plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md#rust-react-compiler) by using `compiler: true` in the plugin options instead of using the Babel plugin.
+## Development
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```sh
+pnpm install
+pnpm dev       # start the dev server
+pnpm build     # type-check and build to dist/
+pnpm preview   # serve the production build (service worker enabled)
+pnpm lint
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+`pnpm-workspace.yaml` sets `minimumReleaseAge` to 24h, matching CI (pnpm 12),
+so new dependencies resolve to versions CI will accept.
+
+## Project layout
+
+```
+src/
+  components/ui/   shadcn/ui components
+  components/      app shell, page header, form field, etc.
+  features/        one folder per section (today, tasks, money, goals, wellbeing, settings)
+  lib/             db (Dexie schema), dates, formatting, theme, reminders, backup
+  router.tsx       routes
+```
+
+## Reminders
+
+Reminders fire as browser notifications while Orbit is open or suspended in the
+background, and any missed reminders fire as soon as the app is opened again.
+Guaranteed delivery while the app is fully closed would need a push server,
+which this local-only app intentionally doesn't use.
